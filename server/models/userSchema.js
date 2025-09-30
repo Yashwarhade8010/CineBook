@@ -2,37 +2,43 @@ const {Schema,model, mongo, default: mongoose} = require('mongoose')
 const bcrypt = require("bcryptjs")
 
 const userSchema = new Schema({
-    username:{
-        type:String,
-        required:true,
-        unique:true,
-        trim:true
+  username: {
+    type: String,
+    required: true,
+    unique: true,
+    trim: true,
+  },
+  name: {
+    type: String,
+    trim: true,
+  },
+  email: {
+    type: String,
+    required: true,
+    unique: true,
+    trim: true,
+    lowercase: true,
+  },
+  password: {
+    type: String,
+    required: true,
+  },
+  Bookings: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "BookTicket",
     },
-    name:{
-        type:String,
-        trim:true
-    },
-    email:{
-        type:String,
-        required:true,
-        unique:true,
-        trim:true,
-        lowercase:true
-    },
-    password:{
-        type:String,
-        required:true
-    },
-    Bookings:[{
-        type:mongoose.Schema.Types.ObjectId,
-        ref:"BookTicket"
-    }],
-    createdAt:{
-        type:Date,
-        default:Date.now
-    }
-
-})
+  ],
+  role: {
+    type: String,
+    enum: ["USER", "ADMIN"],
+    default: "USER",
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+  },
+});
 
 userSchema.pre("save",async function(next){
     if(!this.isModified("password")){

@@ -6,6 +6,8 @@ const asyncHandler = require("express-async-handler");
 const validateRequestBody = require("../utils/validateHelper");
 
 const handleAddMovie = asyncHandler(async(req,res)=>{
+    const { movieName, language, genre, duration, posterUrl, description } =
+      req.body;
     const validate = validateRequestBody(req.body,["movieName","language","genre","duration","posterUrl","description"])
 
     if(validate){
