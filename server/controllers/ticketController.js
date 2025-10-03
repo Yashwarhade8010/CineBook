@@ -126,7 +126,26 @@ const handleTicketBooking = async(req,res)=>{
 
  }
 
+ const handleFetchBookings = async (req, res) => {
+   const userId = req.user.userId;
+   if (!userId) {
+     return res
+       .status(401)
+       .json({ message: "user should be logged in to see bookings" });
+   }
+   try {
+     const user = await User.findById(userId).populate("Bookings");
+
+     const bookings = user.Bookings;
+     return res.status(200).json({ status: "true", data: bookings });
+   } catch (err) {
+     console.error(err.message);
+     throw new Error("Internal server problem");
+   }
+ };
+
  module.exports = {
-    handleTicketBooking,
-    handleTicketCancel
- }
+   handleTicketBooking,
+   handleTicketCancel,
+   handleFetchBookings,
+ };

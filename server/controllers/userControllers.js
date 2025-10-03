@@ -44,6 +44,7 @@ const handleLogin = async (req, res) => {
       return res.status(401).json({ message: "Wrong Password" });
     }
     const userToPass = {
+      userId: user._id,
       username: user.username,
       email: user.email,
       role: user.role,
