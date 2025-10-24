@@ -62,5 +62,8 @@ CineBook/
 ├── package.json
 └── README.md
 
+## 💡 Inspiration
+
+This project idea was inspired by (https://roadmap.sh/projects/movie-reservation-system).
 
 Thank you for checking out CineBook!
