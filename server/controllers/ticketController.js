@@ -5,74 +5,109 @@ const User = require("../models/userSchema");
 
 const buildSeatUpdate = require("../utils/seatHelpers");
 const validateRequestBody = require("../utils/validateHelper");
+const handleGeneratePdfInvoice = require("../utils/generatePdf");
+const transporter = require("../utils/nodeMailer");
 
-const handleTicketBooking = async(req,res)=>{
-    const {userId,movieId,screenId,showId,seats} = req.body;
-    const validate = validateRequestBody(req.body,["userId","movieId","screenId","showId","seats"])
-    if(validate){
-        return res.status(400).json({message:validate})
+const handleTicketBooking = async (req, res) => {
+  const { userId, movieId, screenId, showId, seats } = req.body;
+  const validate = validateRequestBody(req.body, [
+    "userId",
+    "movieId",
+    "screenId",
+    "showId",
+    "seats",
+  ]);
+  if (validate) {
+    return res.status(400).json({ message: validate });
+  }
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const screen = await Screen.findById(screenId).session(session);
+    if (!screen) {
+      throw new Error("Screen not found");
     }
-    const session = await mongoose.startSession();
-    session.startTransaction();
 
-    try{
-        const screen = await Screen.findById(screenId).session(session)
-        if(!screen){
-            throw new Error("Screen not found")
-        }
+    const seatsAvailable = screen.seats.filter((s) =>
+      seats.some((seat) => seat.row == s.row && seat.number == s.number)
+    );
 
-        const seatsAvailable = screen.seats.filter(s=>seats.some(seat=> seat.row == s.row && seat.number == s.number));
-        
-        if(seatsAvailable.some(s=>s.status == "booked")){
-            return res.status(400).json({message:"Seats are already booked"})
-        }
-
-        const BookingResponse = new BookTicket({
-            user:userId,
-            movie:movieId,
-            screen:screenId,
-            show:showId,
-            seats:seats,
-        })
-        
-
-        const {setObj,arrayFilters} = buildSeatUpdate(seats,"hold","empty")
-        await Screen.updateOne(
-            {_id:screenId},
-            {$set:setObj},
-            {arrayFilters:arrayFilters,session}
-        )
-        //payment api is not initilized yet, till then consider payment is successfull for all bookings for testing.
-
-        BookingResponse.status = "Confirmed"
-        await BookingResponse.save({session})
-        
-        const{setObj:setObjBooked,arrayFilters:arrayFiltersBooked} = buildSeatUpdate(seats,"booked","hold")
-        await Screen.updateOne(
-            {_id:screenId},
-            {$set:setObjBooked},
-            {arrayFilters:arrayFiltersBooked,session}
-        )
-
-        await User.updateOne(
-            {_id:userId},
-            {$push:{Bookings:BookingResponse._id},},
-            {session}
-        );
-
-        await session.commitTransaction();
-        session.endSession();
-
-        return res.status(201).json(BookingResponse)
-        
-    }catch(err){
-        console.error(err.message)
-        await session.abortTransaction();
-        session.endSession()
-        return res.status(500).json({message:"Internal server problem"})
-        
+    if (seatsAvailable.some((s) => s.status == "booked")) {
+      return res.status(400).json({ message: "Seats are already booked" });
     }
- }
+
+    let totalAmount = 0;
+    seatsAvailable.forEach((seat) => {
+      totalAmount += seat.price;
+    });
+
+    const BookingResponse = new BookTicket({
+      user: userId,
+      movie: movieId,
+      screen: screenId,
+      show: showId,
+      seats: seats,
+      amount: totalAmount,
+    });
+
+    const { setObj, arrayFilters } = buildSeatUpdate(seats, "hold", "empty");
+    await Screen.updateOne(
+      { _id: screenId },
+      { $set: setObj },
+      { arrayFilters: arrayFilters, session }
+    );
+    //payment api is not initilized yet, till then consider payment is successfull for all bookings for testing.
+
+    BookingResponse.status = "Confirmed";
+    await BookingResponse.save({ session });
+
+    const { setObj: setObjBooked, arrayFilters: arrayFiltersBooked } =
+      buildSeatUpdate(seats, "booked", "hold");
+    await Screen.updateOne(
+      { _id: screenId },
+      { $set: setObjBooked },
+      { arrayFilters: arrayFiltersBooked, session }
+    );
+
+    await User.updateOne(
+      { _id: userId },
+      { $push: { Bookings: BookingResponse._id } },
+      { session }
+    );
+
+    const invoice = await handleGeneratePdfInvoice(
+      BookingResponse._id,
+      req.user.username,
+      seats,
+      totalAmount
+    );
+    await transporter.sendMail({
+      from: process.env.ADMIN_EMAIL,
+      to: req.user.email,
+      subject: "Booking Invoice",
+      text: "Thanks for booking with us",
+      attachments: [
+        {
+          filename: `invoice-${BookingResponse._id}.pdf`,
+          path: invoice,
+        },
+      ],
+    });
+
+    await session.commitTransaction();
+    session.endSession();
+
+    return res
+      .status(201)
+      .json({ message: "Ticket Booked Successfully", data: BookingResponse });
+  } catch (err) {
+    console.error(err.message);
+    await session.abortTransaction();
+    session.endSession();
+    return res.status(500).json({ message: "Internal server problem" });
+  }
+};
 
  const handleTicketCancel = async(req,res)=>{
     const {bookingId,userId} = req.body;

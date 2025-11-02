@@ -16,11 +16,12 @@ screenSchema.pre("save",async function(next){
     rows.forEach((row)=>{
         for(let i=0;i<=6;i++){
             seats.push({
-                row:row,
-                number:i,
-                type:(row == "A" || row == "B") ? "PREMIUM" : "NORMAL",
-                status:"empty"
-            })
+              row: row,
+              number: i,
+              type: row == "A" || row == "B" ? "PREMIUM" : "NORMAL",
+              status: "empty",
+              price: row == "A" || row == "B" ? 479 : 329,
+            });
         }
     })
 
